@@ -6,6 +6,8 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import threading
+import time
 from matplotlib import widgets
 from projection import Quaternion, project_points
 
@@ -85,6 +87,7 @@ class Cube:
 
     def __init__(self, N=3, plastic_color=None, face_colors=None):
         self.N = N
+        self.interactive_cube = None
         if plastic_color is None:
             self.plastic_color = self.default_plastic_color
         else:
@@ -196,7 +199,8 @@ class Cube:
 
     def draw_interactive(self):
         fig = plt.figure(figsize=(5, 5))
-        fig.add_axes(InteractiveCube(self))
+        self.interactive_cube = InteractiveCube(self)
+        fig.add_axes(self.interactive_cube)
         return fig
 
 
@@ -274,14 +278,14 @@ class InteractiveCube(plt.Axes):
         self.figure.canvas.mpl_connect('key_release_event',
                                        self._key_release)
 
-        self._initialize_widgets()
+        #  self._initialize_widgets()
 
         # write some instructions
-        self.figure.text(0.05, 0.05,
-                         "Mouse/arrow keys adjust view\n"
-                         "U/D/L/R/B/F keys turn faces\n"
-                         "(hold shift for counter-clockwise)",
-                         size=10)
+        #  self.figure.text(0.05, 0.05,
+        #                   "Mouse/arrow keys adjust view\n"
+        #                   "U/D/L/R/B/F keys turn faces\n"
+        #                   "(hold shift for counter-clockwise)",
+        #                   size=10)
 
     def _initialize_widgets(self):
         self._ax_reset = self.figure.add_axes([0.75, 0.05, 0.2, 0.075])
@@ -382,17 +386,17 @@ class InteractiveCube(plt.Axes):
         elif event.key == 'down':
             self.rotate(Quaternion.from_v_theta(self._ax_UD,
                                                 -5 * self._step_UD))
-        elif event.key.upper() in 'LRUDBF':
-            if self._shift:
-                direction = -1
-            else:
-                direction = 1
+        #  elif event.key.upper() in 'LRUDBF':
+        #      if self._shift:
+        #          direction = -1
+        #      else:
+        #          direction = 1
 
-            if np.any(self._digit_flags[:N]):
-                for d in np.arange(N)[self._digit_flags[:N]]:
-                    self.rotate_face(event.key.upper(), direction, layer=d)
-            else:
-                self.rotate_face(event.key.upper(), direction)
+        #      if np.any(self._digit_flags[:N]):
+        #          for d in np.arange(N)[self._digit_flags[:N]]:
+        #              self.rotate_face(event.key.upper(), direction, layer=d)
+        #      else:
+        #          self.rotate_face(event.key.upper(), direction)
                 
         self._draw_cube()
 
@@ -468,5 +472,33 @@ if __name__ == '__main__':
     #c.rotate_face('U')
 
     c.draw_interactive()
+
+    def input_loop(c):
+        while True:
+            try:
+                value = raw_input()
+                modifier = 1 if value[0] == "+" else -1
+                axis, layer, amount = value[1:].split()
+
+                axis = {
+                        "x": "R",
+                        "y": "U",
+                        "z": "F",
+                        }[axis]
+                layer  = - int(layer) + c.N // 2
+                amount = - int(amount)
+
+                if c.N % 2 == 0:
+                    layer -= 1
+                    if layer < c.N // 2:
+                        layer += 1
+
+                c.interactive_cube.rotate_face(axis, amount * modifier, layer)
+            except Exception as e:
+                print e
+
+    input_thread = threading.Thread(target=input_loop, args=(c, ))
+    input_thread.daemon = 1
+    input_thread.start()
 
     plt.show()
